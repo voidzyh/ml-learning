@@ -25,11 +25,11 @@ print(f"v2 = {v2}")
 
 # 向量加法（平行四边形法则）
 v_sum = v1 + v2
-print(f"\n向量加法 v1 + v2 = {v_sum}")
+print(f"\n向量加法 v1 + v2 = {v_sum}")   #向量 [4，6]
 
 # 数乘（拉伸向量）
 v_scaled = 2 * v1
-print(f"数乘 2 * v1 = {v_scaled}")
+print(f"数乘 2 * v1 = {v_scaled}") #向量 [6，8]
 
 # 向量的模（长度）
 v1_length = np.linalg.norm(v1)
