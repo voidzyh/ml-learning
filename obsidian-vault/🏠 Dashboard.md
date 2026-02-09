@@ -30,15 +30,15 @@ cssclass: dashboard
 
 ### 知识索引 (MOC)
 - [[99-MOC/🗂️ 主索引]] - 所有知识领域
-- [[99-MOC/线性代数]] - Phase 0 数学基础
+- [[01-Concepts/00-Math/Linear-Algebra/README|线性代数]] - Phase 0 数学基础
 
 ### 知识领域
-- [[线性代数]] - 数学基础
-- [[微积分]] - 优化理论基础
-- [[概率统计]] - 机器学习数学基础
-- [[经典ML]] - 传统机器学习算法
-- [[深度学习]] - 神经网络
-- [[Transformer]] - 现代DL架构
+- [[01-Concepts/00-Math/Linear-Algebra/README|线性代数]] - 数学基础
+- [[01-Concepts/00-Math/Calculus/README|微积分]] - 优化理论基础
+- [[01-Concepts/00-Math/Statistics/README|概率统计]] - 机器学习数学基础
+- [[01-Concepts/01-Classical-ML/README|经典ML]] - 传统机器学习算法
+- [[01-Concepts/02-Deep-Learning/README|深度学习]] - 神经网络
+- [[01-Concepts/03-Modern-DL/Transformer|Transformer]] - 现代DL架构
 
 ### 历史记录
 - [[00-Daily]] - 所有日记

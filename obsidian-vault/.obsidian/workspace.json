@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "01-Concepts/线性变换.md",
+                "file": "README.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "线性变换"
+              "title": "README"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "01-Concepts/线性变换.md",
+                "file": "README.md",
                 "collapseAll": true,
                 "extraContext": true,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "线性变换 的反向链接列表"
+              "title": "README 的反向链接列表"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "01-Concepts/线性变换.md",
+                "file": "README.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "线性变换 的出链列表"
+              "title": "README 的出链列表"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "01-Concepts/线性变换.md",
+                "file": "README.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "线性变换 的大纲"
+              "title": "README 的大纲"
             }
           }
         ]
@@ -184,14 +184,32 @@
   },
   "active": "d1fb8cfa6c207cb4",
   "lastOpenFiles": [
+    "01-Concepts/03-Modern-DL/LLM应用.md",
+    "01-Concepts/03-Modern-DL/Attention.md",
+    "01-Concepts/03-Modern-DL/Transformer.md",
+    "01-Concepts/02-Deep-Learning/RNN.md",
+    "01-Concepts/02-Deep-Learning/CNN.md",
+    "01-Concepts/02-Deep-Learning/README.md",
+    "01-Concepts/01-Classical-ML/README.md",
+    "01-Concepts/00-Math/Statistics/README.md",
+    "01-Concepts/00-Math/Calculus/README.md",
+    "01-Concepts/00-Math/Linear-Algebra/README.md",
+    "01-Concepts/00-Math/Linear-Algebra/线性变换.md",
+    "01-Concepts/03-Modern-DL",
+    "01-Concepts/02-Deep-Learning",
+    "01-Concepts/01-Classical-ML",
+    "01-Concepts/00-Math/Statistics",
+    "01-Concepts/00-Math/Linear-Algebra",
+    "01-Concepts/00-Math/Calculus",
+    "01-Concepts/00-Math",
+    "01-Concepts/线性变换.md",
+    "01-Concepts/线性代数.md",
     "99-MOC/🗂️ 主索引.md",
     "99-MOC/线性代数.md",
     "99-MOC",
     "🏠 Dashboard.md",
     "01-Concepts/微积分.md",
-    "01-Concepts/线性变换.md",
     "00-Daily/2026-02-09.md",
-    "01-Concepts/线性代数.md",
     "README.md",
     "2026-02-09.md",
     "📊 Progress.md",
