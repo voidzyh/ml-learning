@@ -423,10 +423,26 @@ class SpacedRepetitionManager:
 
         for day_key in days_to_backfill:
             # 解析 W1D1 格式
-            parts = day_key.replace('W', '').split('D')
-            if len(parts) != 2:
+            try:
+                if not day_key.startswith('W') or 'D' not in day_key:
+                    print(f'⚠️  跳过格式错误的 day_key: {day_key}')
+                    continue
+
+                parts = day_key.replace('W', '').split('D')
+                if len(parts) != 2:
+                    print(f'⚠️  跳过无法解析的 day_key: {day_key}')
+                    continue
+
+                week, day = int(parts[0]), int(parts[1])
+
+                # 验证范围
+                if not (1 <= week <= 50 and 1 <= day <= 6):
+                    print(f'⚠️  跳过超出范围的 day_key: {day_key} (W{week}D{day})')
+                    continue
+
+            except (ValueError, IndexError) as e:
+                print(f'⚠️  解析 day_key 失败: {day_key}, 错误: {e}')
                 continue
-            week, day = int(parts[0]), int(parts[1])
 
             # 查找课表
             for item in schedule:

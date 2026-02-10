@@ -358,15 +358,44 @@ class MLTutor:
         is_saturday = (day == 6)
         if is_saturday:
             # 周六完成，推进到下一周周一
-            self.tracker['current_week'] += 1
+            next_week = self.tracker['current_week'] + 1
+
+            # 检查是否超出50周
+            if next_week > 50:
+                # 已完成全部50周，不再推进
+                self._save_tracker()
+                return {
+                    'week': week,
+                    'day': day,
+                    'progress': 100.0,
+                    'streak': self.tracker['streak'],
+                    'next_week': 50,
+                    'next_day': 6,
+                    'is_saturday': True,
+                    'new_review_cards': new_cards,
+                    'weekly_review_generated': True,
+                    'completion_rate': 1.0,
+                    'course_completed': True
+                }
+
+            self.tracker['current_week'] = next_week
             self.tracker['current_day'] = 1
             # 更新Phase
             self._update_phase()
-            # 自动生成周回顾
-            review_data = self.generate_weekly_review(week)
-            self.save_weekly_review(review_data)
+
+            # 检查本周完成率，决定是否自动生成周回顾
+            week_overview = self.get_week_overview(week)
+            completion_rate = week_overview['completed'] / 6
+
+            if completion_rate >= 0.5:  # 至少完成一半
+                review_data = self.generate_weekly_review(week)
+                self.save_weekly_review(review_data)
+                weekly_review_generated = True
+            else:
+                weekly_review_generated = False
         else:
             self.tracker['current_day'] += 1
+            weekly_review_generated = False
 
         self._save_tracker()
 
@@ -378,7 +407,9 @@ class MLTutor:
             'next_week': self.tracker['current_week'],
             'next_day': self.tracker['current_day'],
             'is_saturday': is_saturday,
-            'new_review_cards': new_cards
+            'new_review_cards': new_cards,
+            'weekly_review_generated': weekly_review_generated,
+            'completion_rate': completion_rate if is_saturday else None
         }
 
     def mark_skip(self, reason: str = '') -> Dict[str, Any]:
@@ -441,6 +472,14 @@ class MLTutor:
         if week is None:
             week = self.tracker['current_week']
 
+        # 验证周数范围
+        if week < 1 or week > 50:
+            return {
+                'error': f'周数超出范围（1-50）: {week}',
+                'week': week,
+                'days': []
+            }
+
         schedule = self._load_schedule()
         week_days = []
 
@@ -474,6 +513,13 @@ class MLTutor:
 
     def jump_to(self, week: int, day: int):
         '''跳转到指定周和天（用于追赶进度）'''
+        # 验证周数范围
+        if week < 1 or week > 50:
+            raise ValueError(f'周数必须在 1-50 之间，当前值: {week}')
+        # 验证天数范围
+        if day < 1 or day > 6:
+            raise ValueError(f'天数必须在 1-6 之间，当前值: {day}')
+
         self.tracker['current_week'] = week
         self.tracker['current_day'] = day
         self._update_phase()
@@ -1765,8 +1811,18 @@ def main():
                 new_cards = result.get('new_review_cards', [])
                 if new_cards:
                     print(f'🧠 已创建 {len(new_cards)} 张复习卡片: {", ".join(new_cards)}')
-                if result['is_saturday']:
-                    print(f'\n🎉 一周结束！周回顾已自动生成')
+
+                if result.get('course_completed'):
+                    print(f'\n🎓🎉 恭喜！你已完成全部 50 周的学习！')
+                    print(f'   总进度: 100%')
+                    print(f'   这是一个了不起的成就！')
+                elif result['is_saturday']:
+                    if result.get('weekly_review_generated'):
+                        print(f'\n🎉 一周结束！周回顾已自动生成')
+                    else:
+                        completion_rate = result.get('completion_rate', 0)
+                        print(f'\n⚠️  一周结束，但完成率仅 {completion_rate:.0%}')
+                        print(f'   建议补做后再生成周回顾（使用 "review" 命令手动生成）')
 
         elif cmd == 'status':
             status = tutor.get_status()
