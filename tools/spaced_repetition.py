@@ -20,6 +20,13 @@ class SpacedRepetitionManager:
     MIN_EF = 1.3
     MATURE_THRESHOLD = 21  # interval >= 21天视为"成熟"
 
+    # 概念提取配置
+    MIN_CONCEPT_LENGTH = 2
+    MAX_CONCEPT_LENGTH = 100  # 从 50 提升到 100
+
+    # 每日复习量限制
+    MAX_DAILY_REVIEWS = 50
+
     def __init__(self):
         self.data = self._load_data()
 
@@ -122,8 +129,8 @@ class SpacedRepetitionManager:
 
     # ===== 概念提取 =====
 
-    @staticmethod
-    def extract_concepts(morning_theory: str) -> Tuple[List[str], str]:
+    @classmethod
+    def extract_concepts(cls, morning_theory: str) -> Tuple[List[str], str]:
         """
         从课表 morning_theory 文本中提取概念和上下文
 
@@ -139,6 +146,7 @@ class SpacedRepetitionManager:
         lines = morning_theory.strip().split('\n')
         context_parts = []
         concept_parts = []
+        filtered_concepts = []  # 记录被过滤的概念
 
         for line in lines:
             line = line.strip()
@@ -148,10 +156,25 @@ class SpacedRepetitionManager:
                 parts = line.split('•')
                 for part in parts:
                     part = part.strip()
-                    if part and 2 <= len(part) <= 50:
-                        concept_parts.append(part)
+                    if not part:
+                        continue
+
+                    # 检查长度
+                    if len(part) < cls.MIN_CONCEPT_LENGTH:
+                        filtered_concepts.append((part, '太短'))
+                        continue
+                    if len(part) > cls.MAX_CONCEPT_LENGTH:
+                        filtered_concepts.append((part, '太长'))
+                        continue
+
+                    concept_parts.append(part)
             else:
                 context_parts.append(line)
+
+        # 记录被过滤的概念
+        if filtered_concepts:
+            for concept, reason in filtered_concepts:
+                print(f'⚠️  概念被过滤（{reason}）: {concept[:50]}...' if len(concept) > 50 else f'⚠️  概念被过滤（{reason}）: {concept}')
 
         context = '; '.join(context_parts) if context_parts else ''
 
@@ -230,12 +253,21 @@ class SpacedRepetitionManager:
 
     # ===== 复习流程 =====
 
-    def get_due_cards(self, date_str: str = None) -> List[dict]:
+    def get_due_cards(self, date_str: str = None, limit: int = None) -> List[dict]:
         """
         获取到期的卡片列表（按紧急度排序：过期越久越靠前）
+
+        Args:
+            date_str: 日期字符串 YYYY-MM-DD，默认今天
+            limit: 最大返回数量，默认使用 MAX_DAILY_REVIEWS
+
+        Returns:
+            按优先级排序的卡片列表
         """
         if date_str is None:
             date_str = datetime.now().strftime('%Y-%m-%d')
+        if limit is None:
+            limit = self.MAX_DAILY_REVIEWS
 
         due = []
         for key, card in self.data['cards'].items():
@@ -255,8 +287,13 @@ class SpacedRepetitionManager:
                     'interval': card['interval']
                 })
 
-        # 过期越久越靠前
-        due.sort(key=lambda x: -x['overdue_days'])
+        # 按优先级排序：过期天数（降序）+ EF（升序，难的优先）
+        due.sort(key=lambda x: (-x['overdue_days'], x['easiness_factor']))
+
+        # 限制返回数量
+        if limit > 0 and len(due) > limit:
+            return due[:limit]
+
         return due
 
     def review_card(self, concept_key: str, quality: int) -> dict:
@@ -388,6 +425,61 @@ class SpacedRepetitionManager:
     def get_card_detail(self, concept_key: str) -> Optional[dict]:
         """获取单张卡片详情"""
         return self.data['cards'].get(concept_key)
+
+    def get_learning_analytics(self) -> dict:
+        """
+        生成学习分析报告
+
+        Returns:
+            包含掌握度分布、复习量预测、趋势分析的字典
+        """
+        cards = list(self.data['cards'].values())
+        if not cards:
+            return {
+                'total_concepts': 0,
+                'mastery_distribution': {'struggling': 0, 'learning': 0, 'mastered': 0},
+                'review_forecast': [],
+                'average_interval': 0,
+                'retention_estimate': 0
+            }
+
+        # 1. 掌握度分布
+        struggling = sum(1 for c in cards if c['easiness_factor'] < 2.0)
+        learning = sum(1 for c in cards if 2.0 <= c['easiness_factor'] < 2.5)
+        mastered = sum(1 for c in cards if c['easiness_factor'] >= 2.5)
+
+        # 2. 未来7天复习量预测
+        today = datetime.now()
+        forecast = []
+        for day_offset in range(7):
+            target_date = (today + timedelta(days=day_offset)).strftime('%Y-%m-%d')
+            due_count = sum(1 for c in cards if c.get('next_review', '') == target_date)
+            forecast.append({
+                'date': target_date,
+                'count': due_count
+            })
+
+        # 3. 平均复习间隔
+        intervals = [c['interval'] for c in cards if c['review_count'] > 0]
+        avg_interval = round(sum(intervals) / len(intervals), 1) if intervals else 0
+
+        # 4. 记忆保持率估算（基于平均 EF）
+        avg_ef = sum(c['easiness_factor'] for c in cards) / len(cards)
+        # EF 越高，保持率越好（简化估算：EF 2.5 = 85%，每 0.1 差异 ±2%）
+        retention_estimate = min(100, max(0, 85 + (avg_ef - 2.5) * 20))
+
+        return {
+            'total_concepts': len(cards),
+            'mastery_distribution': {
+                'struggling': struggling,
+                'learning': learning,
+                'mastered': mastered
+            },
+            'review_forecast': forecast,
+            'average_interval': avg_interval,
+            'retention_estimate': round(retention_estimate, 1),
+            'average_ef': round(avg_ef, 2)
+        }
 
     # ===== 补建卡片 =====
 

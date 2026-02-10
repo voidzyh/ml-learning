@@ -1783,6 +1783,63 @@ def format_review_stats(stats: Dict) -> str:
     return '\n'.join(lines)
 
 
+def format_learning_analytics(analytics: Dict) -> str:
+    '''格式化学习分析报告'''
+    if analytics['total_concepts'] == 0:
+        return '📊 暂无学习数据，完成几天学习后再查看分析'
+
+    dist = analytics['mastery_distribution']
+    lines = [
+        '═══════════════════════════════════════',
+        '📊 学习分析报告',
+        '═══════════════════════════════════════',
+        '',
+        f'📚 概念总数: {analytics["total_concepts"]}',
+        '',
+        '🎯 掌握度分布:',
+        f'  😰 挣扎中 (EF<2.0): {dist["struggling"]} ({dist["struggling"]/analytics["total_concepts"]*100:.0f}%)',
+        f'  📖 学习中 (EF 2.0-2.5): {dist["learning"]} ({dist["learning"]/analytics["total_concepts"]*100:.0f}%)',
+        f'  ✅ 已掌握 (EF≥2.5): {dist["mastered"]} ({dist["mastered"]/analytics["total_concepts"]*100:.0f}%)',
+        '',
+        '📈 学习指标:',
+        f'  平均复习间隔: {analytics["average_interval"]} 天',
+        f'  平均 EF: {analytics["average_ef"]}',
+        f'  记忆保持率估算: {analytics["retention_estimate"]}%',
+        '',
+        '📅 未来7天复习量预测:',
+    ]
+
+    for item in analytics['review_forecast']:
+        date_obj = datetime.strptime(item['date'], '%Y-%m-%d')
+        day_name = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'][date_obj.weekday()]
+        bar = '█' * min(item['count'], 20)
+        lines.append(f'  {item["date"]} ({day_name}): {bar} {item["count"]}')
+
+    lines.extend([
+        '',
+        '💡 学习建议:',
+    ])
+
+    # 根据数据给出建议
+    if dist['struggling'] > analytics['total_concepts'] * 0.3:
+        lines.append('  ⚠️  挣扎中的概念较多，建议降低学习速度，巩固基础')
+    if analytics['retention_estimate'] < 75:
+        lines.append('  ⚠️  记忆保持率偏低，建议增加复习频率')
+    if max(item['count'] for item in analytics['review_forecast']) > 30:
+        lines.append('  ⚠️  未来某天复习量过大，建议提前分散复习')
+    if not any([dist['struggling'] > analytics['total_concepts'] * 0.3,
+                analytics['retention_estimate'] < 75,
+                max(item['count'] for item in analytics['review_forecast']) > 30]):
+        lines.append('  ✅ 学习状态良好，保持当前节奏！')
+
+    lines.extend([
+        '',
+        '═══════════════════════════════════════',
+    ])
+
+    return '\n'.join(lines)
+
+
 # ========== CLI 入口点 ==========
 
 def main():
@@ -1887,6 +1944,14 @@ def main():
                 stats = sr.get_review_stats()
                 print(format_review_stats(stats))
 
+        elif cmd == 'analytics':
+            sr = tutor.sr_manager
+            if sr is None:
+                print('⚠️  间隔重复模块未安装')
+            else:
+                analytics = sr.get_learning_analytics()
+                print(format_learning_analytics(analytics))
+
         else:
             print('用法: python ml_tutor.py [命令]')
             print('')
@@ -1906,6 +1971,7 @@ def main():
             print('  review-today              查看今日复习卡片')
             print('  review-done <概念> <0-5>  评分复习卡片')
             print('  review-stats              查看复习统计')
+            print('  analytics                 查看学习分析报告')
     else:
         # 默认显示今日计划
         plan = tutor.get_today_plan()

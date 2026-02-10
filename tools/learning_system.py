@@ -63,6 +63,7 @@ def print_help():
     review-today              查看今日复习卡片
     review-done <概念> <0-5>  评分复习卡片
     review-stats              查看复习统计
+    analytics                 学习分析报告（掌握度/预测/保持率）
 
 ⚙️  初始化:
     init            初始化 Obsidian Vault
@@ -287,6 +288,17 @@ def cmd_review_stats(obsidian):
     print(format_review_stats(stats))
 
 
+def cmd_analytics(obsidian):
+    """显示学习分析报告"""
+    sr = obsidian.tutor.sr_manager
+    if sr is None:
+        print("⚠️  间隔重复模块未安装")
+        return
+    analytics = sr.get_learning_analytics()
+    from ml_tutor import format_learning_analytics
+    print(format_learning_analytics(analytics))
+
+
 def cmd_init(obsidian):
     """初始化 Vault"""
     print("🚀 正在初始化 Obsidian Vault...")
@@ -387,6 +399,9 @@ def main():
 
     elif cmd == "review-stats":
         cmd_review_stats(obsidian)
+
+    elif cmd == "analytics":
+        cmd_analytics(obsidian)
 
     elif cmd == "init":
         cmd_init(obsidian)

@@ -64,6 +64,13 @@ print(format_status(status))
 - `progress/review_cards.json` — 间隔重复卡片数据（SM-2算法状态）
 - `progress/knowledge-gaps.md` — 薄弱知识点追踪
 
+## 系统配置
+
+### 间隔复习配置
+- **每日复习量限制**: 默认 50 张卡片/天（可在 `tools/spaced_repetition.py` 的 `MAX_DAILY_REVIEWS` 修改）
+- **优先级排序**: 过期天数（降序）+ 难度（EF 升序，难的优先）
+- **成熟卡片阈值**: 间隔 ≥ 21 天视为"成熟"
+
 ## 用户交互指令
 
 用户会用自然语言请求以下操作。当用户说对应的关键词时，执行相应流程：
@@ -132,6 +139,14 @@ print(format_status(status))
 ### "复习统计" / "review-stats"
 
 展示：总卡片数、今日到期、已过期、成熟卡片(≥21天)、平均EF、总复习次数
+
+### "学习分析" / "analytics" / "分析报告"
+
+展示学习分析报告：
+1. 掌握度分布（困难/学习中/已掌握）
+2. 未来7天复习量预测
+3. 平均复习间隔
+4. 记忆保持率估算（基于平均 EF）
 
 ### "考考我" / "quiz" + 主题
 
@@ -244,6 +259,11 @@ print(format_status(status))
 1. 执行 `python3 ml_tutor.py review-stats`
 2. 用可视化的方式展示统计数据
 3. 给出学习建议（如过期卡片过多需要补复习）
+
+### 用户说"学习分析" / "分析报告"
+1. 执行 `python3 ml_tutor.py analytics`
+2. 展示掌握度分布、复习量预测、记忆保持率
+3. 根据数据给出针对性学习建议
 
 ### 用户说"讲解 [概念]"
 1. 使用 CLAUDE.md 中定义的讲解框架：
