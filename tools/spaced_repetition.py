@@ -191,7 +191,7 @@ class SpacedRepetitionManager:
     # ===== 卡片管理 =====
 
     def create_card(self, concept: str, week: int, day: int,
-                    context: str = '') -> bool:
+                    context: str = '', completed_date: str = None) -> bool:
         """
         创建一张复习卡片
 
@@ -200,6 +200,7 @@ class SpacedRepetitionManager:
             week: 来源周
             day: 来源天
             context: 学习上下文
+            completed_date: 完成日期 YYYY-MM-DD（补建时传入，默认今天）
 
         Returns:
             True=新建, False=已存在
@@ -211,8 +212,13 @@ class SpacedRepetitionManager:
         if concept in self.data['cards']:
             return False
 
-        today = datetime.now().strftime('%Y-%m-%d')
-        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        if completed_date:
+            base_date = datetime.strptime(completed_date, '%Y-%m-%d')
+        else:
+            base_date = datetime.now()
+
+        today = base_date.strftime('%Y-%m-%d')
+        tomorrow = (base_date + timedelta(days=1)).strftime('%Y-%m-%d')
 
         self.data['cards'][concept] = {
             'concept': concept,
@@ -232,9 +238,13 @@ class SpacedRepetitionManager:
         return True
 
     def create_cards_from_day(self, week: int, day: int,
-                              morning_theory: str) -> List[str]:
+                              morning_theory: str,
+                              completed_date: str = None) -> List[str]:
         """
         从某天的 morning_theory 批量创建卡片
+
+        Args:
+            completed_date: 完成日期 YYYY-MM-DD（补建时传入）
 
         Returns:
             新创建的概念列表
@@ -243,7 +253,7 @@ class SpacedRepetitionManager:
         new_cards = []
 
         for concept in concepts:
-            if self.create_card(concept, week, day, context):
+            if self.create_card(concept, week, day, context, completed_date):
                 new_cards.append(concept)
 
         if new_cards:
@@ -536,12 +546,17 @@ class SpacedRepetitionManager:
                 print(f'⚠️  解析 day_key 失败: {day_key}, 错误: {e}')
                 continue
 
+            # 从 tracker 中提取完成日期
+            day_info = done_days[day_key]
+            completed_at = day_info.get('completed_at', '')
+            completed_date = completed_at[:10] if completed_at else None
+
             # 查找课表
             for item in schedule:
                 if item['week'] == week and item['day'] == day:
                     mt = item.get('morning_theory', '')
                     if mt:
-                        new = self.create_cards_from_day(week, day, mt)
+                        new = self.create_cards_from_day(week, day, mt, completed_date)
                         all_new.extend(new)
                     break
 

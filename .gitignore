@@ -43,7 +43,6 @@ env/
 Thumbs.db
 
 # ML specific
-data/*.xlsx
 !data/.gitkeep
 
 # Obsidian

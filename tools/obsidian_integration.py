@@ -18,12 +18,13 @@ from ml_tutor import MLTutor, QUIZ_BANK
 class ObsidianIntegration:
     """Obsidian 集成类"""
 
-    def __init__(self, vault_path: str = None):
+    def __init__(self, vault_path: str = None, tutor=None):
         """
         初始化 Obsidian 集成
 
         Args:
             vault_path: Obsidian Vault 路径，默认为项目下的 obsidian-vault/
+            tutor: 已有的 MLTutor 实例，避免重复创建
         """
         if vault_path is None:
             # 默认在项目目录下创建 vault
@@ -31,7 +32,7 @@ class ObsidianIntegration:
         else:
             self.vault_path = Path(vault_path).expanduser()
 
-        self.tutor = MLTutor()
+        self.tutor = tutor if tutor is not None else MLTutor()
 
         # 初始化目录结构
         self._init_vault_structure()

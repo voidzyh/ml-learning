@@ -17,11 +17,15 @@
 
 **Claude 使用方式（自动执行，对用户透明）：**
 ```bash
-python3 ml_tutor.py today   # 查看今日学习计划
-python3 ml_tutor.py done    # 标记今日完成
-python3 ml_tutor.py status  # 查看总进度仪表盘
-python3 ml_tutor.py week    # 查看本周概览
-python3 ml_tutor.py skip    # 跳过今天
+python3 ml_tutor.py today       # 查看今日学习计划（自动创建日记）
+python3 ml_tutor.py done        # 标记今日完成（自动更新仪表盘）
+python3 ml_tutor.py status      # 查看总进度仪表盘
+python3 ml_tutor.py week        # 查看本周概览
+python3 ml_tutor.py skip        # 跳过今天
+python3 ml_tutor.py quiz        # 生成自测题（自动保存笔记）
+python3 ml_tutor.py concept <名称>  # 创建概念笔记
+python3 ml_tutor.py project <ID>    # 创建项目笔记
+python3 ml_tutor.py dashboard       # 更新进度仪表盘
 ```
 
 **Python API 方式：**
@@ -124,8 +128,9 @@ print(format_status(status))
 
 1. 读取 `progress/review_cards.json`，获取 next_review <= 今天的卡片
 2. 按过期天数排序（过期越久越靠前）展示
-3. 用户对每个概念评分 0-5：
-   - 5=完美回忆 4=稍有犹豫 3=勉强记起 2=模糊 1=几乎忘了 0=完全不记得
+3. Claude 对每个概念**提问**，用户回答后 Claude **评估**给分 0-5：
+   - 5=完整准确 4=基本正确有小瑕疵 3=核心对了但有遗漏
+   - 2=模糊片段 1=方向对但几乎全错 0=完全答不上
 4. SM-2 算法重新计算下次复习间隔：
    - 评分≥3：间隔递增（1天→6天→interval×EF）
    - 评分<3：重置为1天（需要重学）
@@ -248,11 +253,25 @@ print(format_status(status))
 
 ### 用户说"复习" / "今日复习"
 1. 执行 `python3 ml_tutor.py review-today`
-2. 如果有到期卡片：
-   - 逐个展示概念名称和来源
-   - 询问用户对每个概念的记忆程度（0-5）
-   - 用户回答后，执行 `python3 ml_tutor.py review-done "概念" 评分`
-   - 解释下次复习时间
+2. 如果有到期卡片，进入问答评估流程：
+   - 逐个处理每张卡片：
+     a. Claude 根据概念名称和来源上下文，向用户**提问**（可以是定义题、应用题、对比题、代码题，随机变化题型，不要每次都问"请解释XXX"）
+     b. 等待用户回答
+     c. Claude 根据回答**客观评估**给分 0-5：
+        - 5=完整准确，能清晰解释核心要点
+        - 4=基本正确，有小瑕疵或表述不够精确
+        - 3=核心对了但有明显遗漏
+        - 2=只记得模糊片段
+        - 1=方向对但内容几乎全错
+        - 0=完全答不上
+     d. 告知用户评分及理由；评分<4时补充关键知识点
+     e. 执行 `python3 ml_tutor.py review-done "概念" 评分`
+     f. 解释下次复习时间
+   - 评估原则：
+     - 客观公正，不虚高评分
+     - 允许用户用自己的话解释，不要求逐字匹配定义
+     - 用户说"不记得"或"跳过"直接给 0 分并展示正确答案
+   - 全部完成后展示本次复习总结（答对/总数、平均分）
 3. 如果没有到期卡片，鼓励用户继续学习
 
 ### 用户说"复习统计" / "学习统计"

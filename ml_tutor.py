@@ -6,6 +6,7 @@ ML/DL 50周学习系统 - 核心控制器
 
 import json
 import os
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -275,6 +276,167 @@ class MLTutor:
 
     # ========== 公共方法 ==========
 
+    def ensure_daily_note(self, plan: Dict = None) -> Optional[str]:
+        '''如果今日 Obsidian 日记不存在，自动创建并返回路径'''
+        today = datetime.now().strftime('%Y-%m-%d')
+        daily_dir = Path(__file__).parent / 'obsidian-vault' / '00-Daily'
+        daily_file = daily_dir / f'{today}.md'
+
+        if daily_file.exists():
+            return str(daily_file)
+
+        if plan is None:
+            plan = self.get_today_plan()
+
+        daily_dir.mkdir(parents=True, exist_ok=True)
+        item = plan.get('schedule_item') or {}
+        week = plan['week']
+        day_name = plan['day_name']
+        phase = plan['phase']
+        phase_name = plan['phase_name']
+
+        # 生成今日重点
+        focus_points = self._get_focus_points(item) if item else []
+        focus_section = '\n'.join(f'- {p}' for p in focus_points) if focus_points else '- （暂无）'
+
+        # 生成完成情况 checkbox
+        deliverables = item.get('deliverables', '') if item else ''
+        checklist = '- [ ] 上午理论\n- [ ] 下午实践'
+        if deliverables:
+            checklist += f'\n- [ ] 今日交付: {deliverables}'
+
+        # 生成明日预告
+        tomorrow_preview = self._get_tomorrow_preview()
+
+        content = f"""---
+date: {today}
+week: {week}
+day: {plan['day']}
+phase: {phase}
+tags: [daily/week-{week}, phase-{phase}]
+---
+
+# {today} · 第{week}周·{day_name} | Phase {phase} {phase_name}
+
+## 今日重点
+{focus_section}
+
+## 完成情况
+{checklist}
+
+## 上午·理论
+{item.get('morning_theory', '暂无内容') if item else '暂无内容'}
+
+### 笔记
+
+
+## 下午·实践
+{item.get('afternoon_practice', '暂无内容') if item else '暂无内容'}
+
+### 笔记
+
+
+## 今日交付
+{deliverables}
+
+## 收获与疑问
+
+### 今日收获
+
+
+### 遗留疑问
+
+
+## 明日预告
+> {tomorrow_preview}
+"""
+        daily_file.write_text(content, encoding='utf-8')
+        return str(daily_file)
+
+    def update_daily_note_on_done(self, done_result: Dict) -> Optional[str]:
+        '''打卡后更新今日日记，追加打卡总结区块
+
+        Args:
+            done_result: mark_done() 的返回值
+
+        Returns:
+            日记文件路径，如果文件不存在或已包含总结则返回 None
+        '''
+        today = datetime.now().strftime('%Y-%m-%d')
+        daily_file = Path(__file__).parent / 'obsidian-vault' / '00-Daily' / f'{today}.md'
+
+        if not daily_file.exists():
+            return None
+
+        content = daily_file.read_text(encoding='utf-8')
+
+        # 幂等性：已有打卡总结则跳过
+        if '## 打卡总结' in content:
+            return None
+
+        now = datetime.now()
+        week = done_result['week']
+        day = done_result['day']
+        streak = done_result['streak']
+        progress = done_result['progress']
+        new_cards = done_result.get('new_review_cards', [])
+
+        # 构建打卡总结区块
+        summary_lines = [
+            '',
+            '## 打卡总结',
+            f'> 完成时间: {now.strftime("%H:%M")} | '
+            f'连续学习: {streak}天 | '
+            f'总进度: {progress:.1f}%',
+            '',
+        ]
+
+        # 新建复习卡片
+        if new_cards:
+            summary_lines.append('### 今日新建复习卡片')
+            for card in new_cards:
+                summary_lines.append(f'- [[{card}]] (明天复习)')
+            summary_lines.append('')
+
+        # 从课表提取今日核心概念
+        concepts = []
+        for item in self._load_schedule():
+            if item['week'] == week and item['day'] == day:
+                morning = item.get('morning_theory', '')
+                if morning:
+                    for part in morning.split('•'):
+                        c = part.strip()
+                        if c and len(c) > 2 and len(c) < 50:
+                            concepts.append(c)
+                break
+
+        if concepts:
+            summary_lines.append('### 今日核心概念')
+            for c in concepts:
+                summary_lines.append(f'- [[{c}]]')
+            summary_lines.append('')
+
+        summary_block = '\n'.join(summary_lines) + '\n'
+
+        # 自动勾选完成情况 checkbox
+        content = content.replace('- [ ] 上午理论', '- [x] 上午理论')
+        content = content.replace('- [ ] 下午实践', '- [x] 下午实践')
+        # 勾选今日交付（如果有）
+        content = re.sub(r'- \[ \] 今日交付:', '- [x] 今日交付:', content)
+
+        # 在 "## 收获与疑问" 之前插入打卡总结
+        if '## 收获与疑问' in content:
+            content = content.replace(
+                '## 收获与疑问',
+                summary_block + '## 收获与疑问'
+            )
+        else:
+            # 如果没有"收获与疑问"区块，追加到末尾
+            content = content.rstrip() + '\n' + summary_block
+
+        daily_file.write_text(content, encoding='utf-8')
+        return str(daily_file)
+
     def get_today_plan(self) -> Dict[str, Any]:
         '''获取今日学习计划 (/today 指令)'''
         week = self.tracker['current_week']
@@ -524,6 +686,61 @@ class MLTutor:
         self.tracker['current_day'] = day
         self._update_phase()
         self._save_tracker()
+
+    def _get_tomorrow_preview(self) -> str:
+        '''获取明日学习内容预告'''
+        week = self.tracker['current_week']
+        day = self.tracker['current_day']
+
+        # 计算下一天
+        if day < 6:
+            next_week, next_day = week, day + 1
+        else:
+            next_week, next_day = week + 1, 1
+
+        if next_week > 50:
+            return '已完成全部50周学习计划！'
+
+        schedule = self._load_schedule()
+        for item in schedule:
+            if item['week'] == next_week and item['day'] == next_day:
+                theory = item.get('morning_theory', '')
+                # 截取摘要（取第一个要点）
+                summary = theory.split('•')[0].strip() if theory else ''
+                if len(summary) > 60:
+                    summary = summary[:60] + '...'
+                day_name = self.DAY_NAMES[next_day - 1]
+                return f'第{next_week}周·{day_name}: {summary}'
+
+        return f'第{next_week}周·{self.DAY_NAMES[next_day - 1]}'
+
+    def _get_focus_points(self, schedule_item: Dict) -> list:
+        '''从课表项中提取今日重点列表'''
+        points = []
+        morning = schedule_item.get('morning_theory', '')
+        afternoon = schedule_item.get('afternoon_practice', '')
+
+        if morning:
+            # 按 • 分隔提取理论要点
+            parts = morning.split('•')
+            for part in parts:
+                concept = part.strip()
+                if concept and len(concept) > 2:
+                    # 去掉过长的描述，只取核心
+                    if len(concept) > 50:
+                        concept = concept[:50] + '...'
+                    points.append(f'理解 **{concept}** 的核心思想')
+
+        if afternoon:
+            # 取实践摘要（只取第一行）
+            first_line = afternoon.split('\n')[0].strip()
+            summary = first_line.split('•')[0].strip()
+            if summary and len(summary) > 2:
+                if len(summary) > 50:
+                    summary = summary[:50] + '...'
+                points.append(f'实践: {summary}')
+
+        return points
 
     def _update_phase(self):
         '''根据当前周更新Phase'''
@@ -1730,11 +1947,7 @@ def format_due_reviews(cards: List[Dict]) -> str:
 
     lines.extend([
         '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-        '评分标准:',
-        '  5=完美回忆  4=稍有犹豫  3=勉强记起',
-        '  2=模糊记忆  1=几乎忘了  0=完全不记得',
-        '',
-        '用法: python ml_tutor.py review-done "概念名" 评分',
+        '复习方式: Claude 逐个提问，根据回答自动评分',
         '═══════════════════════════════════════',
     ])
 
@@ -1842,6 +2055,17 @@ def format_learning_analytics(analytics: Dict) -> str:
 
 # ========== CLI 入口点 ==========
 
+def _get_obsidian(tutor=None):
+    '''懒加载 ObsidianIntegration，复用已有 tutor 避免重复创建'''
+    try:
+        import sys as _sys
+        _sys.path.insert(0, str(Path(__file__).parent / 'tools'))
+        from obsidian_integration import ObsidianIntegration
+        return ObsidianIntegration(tutor=tutor)
+    except ImportError:
+        return None
+
+
 def main():
     '''CLI入口，用于测试'''
     import sys
@@ -1854,6 +2078,10 @@ def main():
         if cmd == 'today':
             plan = tutor.get_today_plan()
             print(format_today_plan(plan))
+            # 自动创建今日 Obsidian 日记
+            daily_path = tutor.ensure_daily_note(plan)
+            if daily_path:
+                print(f'📝 今日笔记: {daily_path}')
 
         elif cmd == 'done':
             result = tutor.mark_done()
@@ -1881,6 +2109,17 @@ def main():
                         print(f'\n⚠️  一周结束，但完成率仅 {completion_rate:.0%}')
                         print(f'   建议补做后再生成周回顾（使用 "review" 命令手动生成）')
 
+            # 打卡后自动整理日记
+            daily_path = tutor.update_daily_note_on_done(result)
+            if daily_path:
+                print(f'📝 今日日记已更新: {daily_path}')
+
+            # 自动更新进度仪表盘
+            obsidian = _get_obsidian(tutor)
+            if obsidian:
+                obsidian.update_progress_dashboard()
+                print('📊 进度仪表盘已更新')
+
         elif cmd == 'status':
             status = tutor.get_status()
             print(format_status(status))
@@ -1900,6 +2139,14 @@ def main():
             count = int(sys.argv[3]) if len(sys.argv) > 3 else 5
             quiz_data = tutor.generate_quiz(topic, count)
             print(format_quiz(quiz_data))
+            # 自动保存测验笔记
+            obsidian = _get_obsidian(tutor)
+            if obsidian:
+                filepath = obsidian.create_quiz_note(
+                    quiz_data['topic'],
+                    quiz_data['questions']
+                )
+                print(f'📝 测验笔记已保存: {filepath}')
 
         elif cmd == 'review':
             # 可选参数: review <周数>
@@ -1917,6 +2164,43 @@ def main():
             total = int(sys.argv[4])
             tutor.save_quiz_score(topic, score, total)
             print(f'✅ 成绩已保存: {score}/{total} ({topic})')
+
+        elif cmd == 'concept' and len(sys.argv) > 2:
+            concept_name = sys.argv[2]
+            obsidian = _get_obsidian(tutor)
+            if obsidian:
+                filepath = obsidian.create_concept_note(concept_name)
+                print(f'✅ 概念笔记已创建: {concept_name}')
+                print(f'📝 文件位置: {filepath}')
+            else:
+                print('⚠️  Obsidian 集成模块未安装')
+
+        elif cmd == 'project' and len(sys.argv) > 2:
+            project_id = sys.argv[2]
+            obsidian = _get_obsidian(tutor)
+            if obsidian:
+                filepath = obsidian.create_project_note(project_id)
+                print(f'✅ 项目笔记已创建: {project_id}')
+                print(f'📝 文件位置: {filepath}')
+            else:
+                print('⚠️  Obsidian 集成模块未安装')
+
+        elif cmd == 'projects':
+            projects = tutor.tracker.get('projects', {})
+            print('📁 学习项目清单:')
+            print('─' * 50)
+            for pid, info in projects.items():
+                symbol = {'not_started': '⬜', 'in_progress': '🔄', 'done': '✅'}.get(
+                    info.get('status', 'not_started'), '⬜')
+                print(f'{symbol} {pid:25s} (W{info.get("week", 1):2d})')
+
+        elif cmd == 'dashboard':
+            obsidian = _get_obsidian(tutor)
+            if obsidian:
+                filepath = obsidian.update_progress_dashboard()
+                print(f'✅ 进度仪表盘已更新: {filepath}')
+            else:
+                print('⚠️  Obsidian 集成模块未安装')
 
         elif cmd == 'review-today':
             sr = tutor.sr_manager
@@ -1956,16 +2240,19 @@ def main():
             print('用法: python ml_tutor.py [命令]')
             print('')
             print('📅 每日学习:')
-            print('  today           查看今日学习计划')
-            print('  done            标记今日完成')
+            print('  today           查看今日学习计划（自动创建日记）')
+            print('  done            标记今日完成（自动更新仪表盘）')
             print('  status          查看总进度仪表盘')
             print('  week            查看本周概览')
             print('  skip <原因>     跳过今天')
             print('')
-            print('📝 测验:')
-            print('  quiz [主题]     生成自测题（默认5道）')
+            print('📝 知识管理:')
+            print('  quiz [主题]     生成自测题（自动保存笔记）')
             print('  review [周数]   生成周回顾')
-            print('  save-score      保存测验成绩')
+            print('  concept <名称>  创建概念笔记')
+            print('  project <ID>    创建项目笔记')
+            print('  projects        列出所有项目')
+            print('  dashboard       更新进度仪表盘')
             print('')
             print('📖 间隔复习:')
             print('  review-today              查看今日复习卡片')

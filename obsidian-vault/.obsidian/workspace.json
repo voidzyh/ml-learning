@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "README.md",
+                "file": "01-Concepts/00-Math/Linear-Algebra/README.md",
                 "mode": "source",
                 "source": false
               },
@@ -78,7 +78,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 200
+    "width": 341.5
   },
   "right": {
     "id": "0bb375ec19eea69f",
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "README.md",
+                "file": "01-Concepts/00-Math/Linear-Algebra/README.md",
                 "collapseAll": true,
                 "extraContext": true,
                 "sortOrder": "alphabetical",
@@ -183,6 +183,21 @@
   },
   "active": "d1fb8cfa6c207cb4",
   "lastOpenFiles": [
+    "00-Daily/2026-02-10.md",
+    "01-Concepts/00-Math/Linear-Algebra/非方阵的变换.md",
+    "01-Concepts/00-Math/Linear-Algebra/点积的几何意义.md",
+    "00-Daily/2026-02-09.md",
+    "01-Concepts/00-Math/Linear-Algebra/逆矩阵与列空间零空间.md",
+    "01-Concepts/00-Math/Linear-Algebra/行列式.md",
+    "01-Concepts/00-Math/Linear-Algebra/线性变换.md",
+    "01-Concepts/00-Math/Calculus/README.md",
+    "01-Concepts/00-Math/Linear-Algebra/README.md",
+    "03-Quizzes/Quiz-linear-algebra-20260210.md",
+    "01-Concepts/行列式.md",
+    "99-MOC/线性代数.md",
+    "🏠 Dashboard.md",
+    "📊 Progress.md",
+    "README.md",
     "01-Concepts/03-Modern-DL/LLM应用.md",
     "01-Concepts/03-Modern-DL/Attention.md",
     "01-Concepts/03-Modern-DL/Transformer.md",
@@ -191,9 +206,6 @@
     "01-Concepts/02-Deep-Learning/README.md",
     "01-Concepts/01-Classical-ML/README.md",
     "01-Concepts/00-Math/Statistics/README.md",
-    "01-Concepts/00-Math/Calculus/README.md",
-    "01-Concepts/00-Math/Linear-Algebra/README.md",
-    "01-Concepts/00-Math/Linear-Algebra/线性变换.md",
     "01-Concepts/03-Modern-DL",
     "01-Concepts/02-Deep-Learning",
     "01-Concepts/01-Classical-ML",
@@ -204,14 +216,6 @@
     "01-Concepts/线性变换.md",
     "01-Concepts/线性代数.md",
     "99-MOC/🗂️ 主索引.md",
-    "99-MOC/线性代数.md",
-    "99-MOC",
-    "🏠 Dashboard.md",
-    "01-Concepts/微积分.md",
-    "00-Daily/2026-02-09.md",
-    "README.md",
-    "2026-02-09.md",
-    "📊 Progress.md",
-    "01-Concepts/概率统计.md"
+    "99-MOC"
   ]
 }

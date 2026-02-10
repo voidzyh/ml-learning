@@ -87,6 +87,10 @@ def cmd_today(obsidian):
     from ml_tutor import format_today_plan
     plan = obsidian.tutor.get_today_plan()
     print(format_today_plan(plan))
+    # 自动创建今日 Obsidian 日记
+    daily_path = obsidian.tutor.ensure_daily_note(plan)
+    if daily_path:
+        print(f'📝 今日笔记: {daily_path}')
 
 
 def cmd_daily(obsidian):
