@@ -12,7 +12,7 @@ import re
 class ObsidianManager:
     def __init__(self, vault_path: str = None):
         if vault_path is None:
-            self.vault = Path(__file__).parent / "obsidian-vault"
+            self.vault = Path(__file__).parent.parent / "obsidian-vault"
         else:
             self.vault = Path(vault_path)
 

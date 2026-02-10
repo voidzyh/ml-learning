@@ -27,7 +27,7 @@ class ObsidianIntegration:
         """
         if vault_path is None:
             # 默认在项目目录下创建 vault
-            self.vault_path = Path(__file__).parent / "obsidian-vault"
+            self.vault_path = Path(__file__).parent.parent / "obsidian-vault"
         else:
             self.vault_path = Path(vault_path).expanduser()
 
@@ -510,8 +510,9 @@ cssclass: daily-note
             if key in default_content:
                 default_content[key] = value
 
-        # 生成文件名
-        filename = f"{concept_name}.md"
+        # 生成文件名（清理特殊字符，但保留原始概念名用于内容）
+        safe_filename = self.sanitize_filename(concept_name)
+        filename = f"{safe_filename}.md"
         filepath = self.vault_path / "01-Concepts" / filename
 
         # 如果文件已存在，不覆盖

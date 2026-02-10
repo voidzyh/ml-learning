@@ -59,7 +59,7 @@ print(format_status(status))
 ## 进度追踪
 
 - `progress/tracker.json` — 核心进度数据，包含当前周/天、完成记录、项目状态、连续天数
-- `progress/weekly-reviews/week-XX.md` — 每周回顾笔记
+- `progress/review_cards.json` — 间隔重复卡片数据（SM-2算法状态）
 - `progress/knowledge-gaps.md` — 薄弱知识点追踪
 
 ## 用户交互指令
@@ -79,10 +79,11 @@ print(format_status(status))
 ### "完成" / "done" / "打卡"
 
 1. 更新 tracker.json：将当前天标记为 done，记录时间戳
-2. current_day += 1（如果是第6天则 current_week += 1, current_day = 1）
-3. streak += 1, total_completed_days += 1
-4. 更新 phase（根据周数判断）
-5. 输出进度摘要和鼓励
+2. 自动从当天课表提取概念，创建间隔重复卡片（SM-2算法，next_review=明天）
+3. current_day += 1（如果是第6天则 current_week += 1, current_day = 1，并自动生成周回顾）
+4. streak += 1, total_completed_days += 1
+5. 更新 phase（根据周数判断）
+6. 输出进度摘要 + 新建的复习卡片数
 
 ### "跳过" / "skip"
 
@@ -101,7 +102,23 @@ print(format_status(status))
 1. 汇总本周完成情况
 2. 根据本周课表内容，生成3-5道自测题
 3. 识别薄弱点写入 knowledge-gaps.md
-4. 生成 weekly-reviews/week-XX.md
+4. 生成 obsidian-vault/04-Reviews/Week-XX-Review.md
+5. 注意：周六打卡时会自动生成周回顾
+
+### "复习" / "review-today" / "今日复习"
+
+1. 读取 `progress/review_cards.json`，获取 next_review <= 今天的卡片
+2. 按过期天数排序（过期越久越靠前）展示
+3. 用户对每个概念评分 0-5：
+   - 5=完美回忆 4=稍有犹豫 3=勉强记起 2=模糊 1=几乎忘了 0=完全不记得
+4. SM-2 算法重新计算下次复习间隔：
+   - 评分≥3：间隔递增（1天→6天→interval×EF）
+   - 评分<3：重置为1天（需要重学）
+5. 更新卡片的 next_review 和 easiness_factor
+
+### "复习统计" / "review-stats"
+
+展示：总卡片数、今日到期、已过期、成熟卡片(≥21天)、平均EF、总复习次数
 
 ### "考考我" / "quiz" + 主题
 

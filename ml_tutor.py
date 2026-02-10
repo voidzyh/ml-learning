@@ -18,6 +18,19 @@ except ImportError:
     EXCEL_AVAILABLE = False
 
 
+def _get_sr_manager():
+    '''延迟导入间隔重复管理器，避免循环依赖'''
+    try:
+        import sys as _sys
+        tools_path = str(Path(__file__).parent / 'tools')
+        if tools_path not in _sys.path:
+            _sys.path.insert(0, tools_path)
+        from spaced_repetition import SpacedRepetitionManager
+        return SpacedRepetitionManager()
+    except ImportError:
+        return None
+
+
 class MLTutor:
     '''ML/DL学习系统核心类'''
 
@@ -48,6 +61,18 @@ class MLTutor:
         self.tracker = self._load_tracker()
         self._schedule_cache = None
         self._bilibili_cache = None
+        self._sr_manager = None  # 延迟初始化
+
+    @property
+    def sr_manager(self):
+        '''延迟加载间隔重复管理器，首次访问时补建已完成天数的卡片'''
+        if self._sr_manager is None:
+            self._sr_manager = _get_sr_manager()
+            if self._sr_manager:
+                self._sr_manager.backfill_from_tracker(
+                    self.tracker, self._load_schedule
+                )
+        return self._sr_manager
 
     def _load_tracker(self) -> dict:
         '''加载进度追踪文件'''
@@ -266,6 +291,11 @@ class MLTutor:
 
         resources = self._get_bilibili_resources(week)
 
+        # 获取今日到期的复习卡片
+        due_reviews = []
+        if self.sr_manager:
+            due_reviews = self.sr_manager.get_due_cards()
+
         return {
             'week': week,
             'day': day,
@@ -273,7 +303,8 @@ class MLTutor:
             'phase': phase,
             'phase_name': self.PHASES.get(phase, ''),
             'schedule_item': today_item,
-            'bilibili_resources': resources
+            'bilibili_resources': resources,
+            'due_reviews': due_reviews
         }
 
     def mark_done(self) -> Dict[str, Any]:
@@ -281,6 +312,23 @@ class MLTutor:
         week = self.tracker['current_week']
         day = self.tracker['current_day']
         day_key = self._get_day_key(week, day)
+
+        # 幂等性检查：防止重复标记
+        if day_key in self.tracker['days']:
+            existing = self.tracker['days'][day_key]
+            if existing.get('status') == 'done':
+                return {
+                    'error': f'第{week}周第{day}天已经完成过了',
+                    'completed_at': existing.get('completed_at'),
+                    'week': week,
+                    'day': day,
+                    'progress': (self.tracker['total_completed_days'] / 300) * 100,
+                    'streak': self.tracker['streak'],
+                    'next_week': self.tracker['current_week'],
+                    'next_day': self.tracker['current_day'],
+                    'is_saturday': False,
+                    'new_review_cards': []
+                }
 
         # 更新当天状态
         self.tracker['days'][day_key] = {
@@ -296,6 +344,16 @@ class MLTutor:
         total_days = 50 * 6  # 50周 × 6天
         progress = (self.tracker['total_completed_days'] / total_days) * 100
 
+        # 自动创建间隔重复卡片
+        new_cards = []
+        if self.sr_manager:
+            for item in self._load_schedule():
+                if item['week'] == week and item['day'] == day:
+                    mt = item.get('morning_theory', '')
+                    if mt:
+                        new_cards = self.sr_manager.create_cards_from_day(week, day, mt)
+                    break
+
         # 推进到下一天
         is_saturday = (day == 6)
         if is_saturday:
@@ -304,6 +362,9 @@ class MLTutor:
             self.tracker['current_day'] = 1
             # 更新Phase
             self._update_phase()
+            # 自动生成周回顾
+            review_data = self.generate_weekly_review(week)
+            self.save_weekly_review(review_data)
         else:
             self.tracker['current_day'] += 1
 
@@ -316,7 +377,8 @@ class MLTutor:
             'streak': self.tracker['streak'],
             'next_week': self.tracker['current_week'],
             'next_day': self.tracker['current_day'],
-            'is_saturday': is_saturday
+            'is_saturday': is_saturday,
+            'new_review_cards': new_cards
         }
 
     def mark_skip(self, reason: str = '') -> Dict[str, Any]:
@@ -623,10 +685,10 @@ class MLTutor:
 
     def save_weekly_review(self, review_data: Dict):
         '''保存周回顾到文件'''
-        reviews_dir = self.BASE_DIR / 'progress' / 'weekly-reviews'
+        reviews_dir = self.BASE_DIR / 'obsidian-vault' / '04-Reviews'
         reviews_dir.mkdir(parents=True, exist_ok=True)
 
-        filename = f'week-{review_data['week']:02d}.md'
+        filename = f'Week-{review_data['week']:02d}-Review.md'
         filepath = reviews_dir / filename
 
         # 生成Markdown内容
@@ -1375,6 +1437,29 @@ def format_today_plan(plan: Dict) -> str:
                 ''
             ])
 
+    # 今日复习卡片
+    due_reviews = plan.get('due_reviews', [])
+    if due_reviews:
+        lines.extend([
+            '📖 今日复习 (间隔重复)',
+            '━━━━━━━━━━━━━━━━━━━━━━',
+            f'共 {len(due_reviews)} 个概念需要复习：',
+            ''
+        ])
+        for i, card in enumerate(due_reviews, 1):
+            overdue = card.get('overdue_days', 0)
+            marker = f' ⚠️过期{overdue}天' if overdue > 0 else ''
+            lines.append(
+                f'  {i}. {card["concept"]} '
+                f'(来自W{card["source_week"]}D{card["source_day"]})'
+                f'{marker}'
+            )
+        lines.extend([
+            '',
+            '💡 输入 "复习" 开始复习流程，逐个评分 0-5',
+            ''
+        ])
+
     # 学习提示
     tips = _get_learning_tips(plan['week'], plan['phase'])
     if tips:
@@ -1569,6 +1654,89 @@ def format_review(review_data: Dict) -> str:
     return '\n'.join(lines)
 
 
+# ========== 间隔复习格式化 ==========
+
+def format_due_reviews(cards: List[Dict]) -> str:
+    '''格式化今日复习卡片列表'''
+    if not cards:
+        return '✅ 今日没有需要复习的概念！'
+
+    lines = [
+        '═══════════════════════════════════════',
+        f'📖 今日复习卡片 — 共 {len(cards)} 个',
+        '═══════════════════════════════════════',
+        ''
+    ]
+
+    for i, card in enumerate(cards, 1):
+        overdue = card.get('overdue_days', 0)
+        marker = f' ⚠️过期{overdue}天' if overdue > 0 else ' 📅今天到期'
+        ctx = card.get('source_context', '')
+        ctx_line = f'     来源: {ctx}' if ctx else ''
+
+        lines.append(f'  {i}. 【{card["concept"]}】{marker}')
+        lines.append(f'     W{card["source_week"]}D{card["source_day"]} | '
+                     f'已复习{card["review_count"]}次 | '
+                     f'间隔{card["interval"]}天')
+        if ctx_line:
+            lines.append(ctx_line)
+        lines.append('')
+
+    lines.extend([
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        '评分标准:',
+        '  5=完美回忆  4=稍有犹豫  3=勉强记起',
+        '  2=模糊记忆  1=几乎忘了  0=完全不记得',
+        '',
+        '用法: python ml_tutor.py review-done "概念名" 评分',
+        '═══════════════════════════════════════',
+    ])
+
+    return '\n'.join(lines)
+
+
+def format_review_result(result: Dict) -> str:
+    '''格式化单次复习评分结果'''
+    if 'error' in result:
+        return f'❌ {result["error"]}'
+
+    lines = [
+        f'📝 {result["concept"]} — {result["status"]}',
+        f'   评分: {result["quality"]}/5',
+        f'   间隔: {result["old_interval"]}天 → {result["new_interval"]}天',
+        f'   EF: {result["old_ef"]} → {result["new_ef"]}',
+        f'   下次复习: {result["next_review"]}',
+        f'   累计复习: {result["review_count"]}次',
+    ]
+
+    return '\n'.join(lines)
+
+
+def format_review_stats(stats: Dict) -> str:
+    '''格式化复习统计面板'''
+    lines = [
+        '═══════════════════════════════════════',
+        '📊 间隔复习统计',
+        '═══════════════════════════════════════',
+        '',
+        f'  📚 总卡片数: {stats["total_cards"]}',
+        f'  📅 今日到期: {stats["due_today"]}',
+        f'  ⚠️  已过期: {stats["overdue"]}',
+        '',
+        f'  🌱 新卡/年轻: {stats["young"]}',
+        f'  🌳 成熟(≥21天): {stats["mature"]}',
+        f'  📭 从未复习: {stats["never_reviewed"]}',
+        '',
+        f'  🔄 总复习次数: {stats["total_reviews"]}',
+        f'  📈 平均评分: {stats["average_quality"]}/5',
+        f'  📐 平均EF: {stats["average_ef"]}',
+        '',
+        '═══════════════════════════════════════',
+    ]
+
+    return '\n'.join(lines)
+
+
 # ========== CLI 入口点 ==========
 
 def main():
@@ -1586,11 +1754,19 @@ def main():
 
         elif cmd == 'done':
             result = tutor.mark_done()
-            print(f'✅ 第{result['week']}周第{result['day']}天已完成！')
-            print(f'📊 总进度: {result['progress']:.1f}%')
-            print(f'🔥 连续学习: {result['streak']}天')
-            if result['is_saturday']:
-                print(f'\n🎉 一周结束！建议做周回顾')
+            if 'error' in result:
+                print(f'⚠️  {result["error"]}')
+                print(f'   完成时间: {result["completed_at"]}')
+                print(f'📊 当前进度: {result["progress"]:.1f}%')
+            else:
+                print(f'✅ 第{result["week"]}周第{result["day"]}天已完成！')
+                print(f'📊 总进度: {result["progress"]:.1f}%')
+                print(f'🔥 连续学习: {result["streak"]}天')
+                new_cards = result.get('new_review_cards', [])
+                if new_cards:
+                    print(f'🧠 已创建 {len(new_cards)} 张复习卡片: {", ".join(new_cards)}')
+                if result['is_saturday']:
+                    print(f'\n🎉 一周结束！周回顾已自动生成')
 
         elif cmd == 'status':
             status = tutor.get_status()
@@ -1629,16 +1805,51 @@ def main():
             tutor.save_quiz_score(topic, score, total)
             print(f'✅ 成绩已保存: {score}/{total} ({topic})')
 
+        elif cmd == 'review-today':
+            sr = tutor.sr_manager
+            if sr is None:
+                print('⚠️  间隔重复模块未安装')
+            else:
+                due = sr.get_due_cards()
+                print(format_due_reviews(due))
+
+        elif cmd == 'review-done' and len(sys.argv) >= 4:
+            sr = tutor.sr_manager
+            if sr is None:
+                print('⚠️  间隔重复模块未安装')
+            else:
+                concept = sys.argv[2]
+                quality = int(sys.argv[3])
+                result = sr.review_card(concept, quality)
+                print(format_review_result(result))
+
+        elif cmd == 'review-stats':
+            sr = tutor.sr_manager
+            if sr is None:
+                print('⚠️  间隔重复模块未安装')
+            else:
+                stats = sr.get_review_stats()
+                print(format_review_stats(stats))
+
         else:
-            print('用法: python ml_tutor.py [today|done|status|week|skip|quiz|review|save-score]')
+            print('用法: python ml_tutor.py [命令]')
+            print('')
+            print('📅 每日学习:')
             print('  today           查看今日学习计划')
             print('  done            标记今日完成')
             print('  status          查看总进度仪表盘')
             print('  week            查看本周概览')
             print('  skip <原因>     跳过今天')
+            print('')
+            print('📝 测验:')
             print('  quiz [主题]     生成自测题（默认5道）')
             print('  review [周数]   生成周回顾')
             print('  save-score      保存测验成绩')
+            print('')
+            print('📖 间隔复习:')
+            print('  review-today              查看今日复习卡片')
+            print('  review-done <概念> <0-5>  评分复习卡片')
+            print('  review-stats              查看复习统计')
     else:
         # 默认显示今日计划
         plan = tutor.get_today_plan()

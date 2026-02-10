@@ -8,7 +8,9 @@ import sys
 import os
 from pathlib import Path
 
-# 添加项目路径
+# 添加项目根路径和tools路径
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from obsidian_integration import ObsidianIntegration
@@ -56,6 +58,11 @@ def print_help():
 🚀 项目管理:
     project <ID>    创建项目笔记
     projects        列出所有项目
+
+📖 间隔复习 (SM-2):
+    review-today              查看今日复习卡片
+    review-done <概念> <0-5>  评分复习卡片
+    review-stats              查看复习统计
 
 ⚙️  初始化:
     init            初始化 Obsidian Vault
@@ -247,6 +254,39 @@ def cmd_projects(obsidian):
     print("💡 使用 'project <ID>' 创建项目笔记")
 
 
+def cmd_review_today(obsidian):
+    """显示今日复习卡片"""
+    sr = obsidian.tutor.sr_manager
+    if sr is None:
+        print("⚠️  间隔重复模块未安装")
+        return
+    due = sr.get_due_cards()
+    from ml_tutor import format_due_reviews
+    print(format_due_reviews(due))
+
+
+def cmd_review_card(obsidian, concept, quality):
+    """评分一张复习卡片"""
+    sr = obsidian.tutor.sr_manager
+    if sr is None:
+        print("⚠️  间隔重复模块未安装")
+        return
+    result = sr.review_card(concept, int(quality))
+    from ml_tutor import format_review_result
+    print(format_review_result(result))
+
+
+def cmd_review_stats(obsidian):
+    """显示复习统计"""
+    sr = obsidian.tutor.sr_manager
+    if sr is None:
+        print("⚠️  间隔重复模块未安装")
+        return
+    stats = sr.get_review_stats()
+    from ml_tutor import format_review_stats
+    print(format_review_stats(stats))
+
+
 def cmd_init(obsidian):
     """初始化 Vault"""
     print("🚀 正在初始化 Obsidian Vault...")
@@ -335,6 +375,18 @@ def main():
 
     elif cmd == "projects":
         cmd_projects(obsidian)
+
+    elif cmd == "review-today":
+        cmd_review_today(obsidian)
+
+    elif cmd == "review-done":
+        if len(sys.argv) >= 4:
+            cmd_review_card(obsidian, sys.argv[2], sys.argv[3])
+        else:
+            print("❌ 用法: review-done <概念> <评分0-5>")
+
+    elif cmd == "review-stats":
+        cmd_review_stats(obsidian)
 
     elif cmd == "init":
         cmd_init(obsidian)

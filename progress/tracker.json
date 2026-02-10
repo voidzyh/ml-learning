@@ -1,15 +1,25 @@
 {
   "start_date": "2026-02-10",
   "current_week": 1,
-  "current_day": 2,
-  "streak": 1,
-  "total_completed_days": 1,
-  "total_skipped_days": 0,
+  "current_day": 4,
+  "streak": 2,
+  "total_completed_days": 3,
+  "total_skipped_days": 1,
   "phase": 0,
   "days": {
     "W1D1": {
       "status": "done",
       "completed_at": "2026-02-09T23:06:32.287789",
+      "notes": ""
+    },
+    "W1D2": {
+      "status": "done",
+      "completed_at": "2026-02-10T12:27:14.160015",
+      "notes": ""
+    },
+    "W1D3": {
+      "status": "done",
+      "completed_at": "2026-02-10T12:27:14.251109",
       "notes": ""
     }
   },
